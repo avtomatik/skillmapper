@@ -114,7 +114,7 @@ def get_my_resumes(*, headers=None):
 
 @with_valid_token
 def get_recommended_vacancies(resume_id: str, *, headers=None):
-    url = f'{conf.API_BASE_URL}/resumes/{resume_id}/recommendations'
+    url = f'{conf.API_BASE_URL}/resumes/{resume_id}/similar_vacancies'
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json()

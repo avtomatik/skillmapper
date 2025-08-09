@@ -15,7 +15,7 @@ class Settings:
     REDIRECT_PATH: str = os.getenv('REDIRECT_PATH', '/callback')
 
     AUTH_BASE_URL: str = 'https://hh.ru/oauth/authorize'
-    TOKEN_URL: str = 'https://hh.ru/oauth/token'
+    TOKEN_URL: str = 'https://api.hh.ru/token'
     API_BASE_URL: str = 'https://api.hh.ru'
 
     @property

@@ -122,3 +122,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Ignore system files from macOS and Windows
+.DS_Store
+Thumbs.db
+
+# Ignore resume_config.toml which holds OAuth credentials and token data (keep private)
+resume_config.toml

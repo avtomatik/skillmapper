@@ -1,134 +1,197 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jun  7 22:54:24 2022
-
-@author: Alexander Mikhailov
-"""
-
 import threading
 import time
 import webbrowser
 from functools import wraps
 from http import HTTPStatus
-from typing import Callable, Optional
+from typing import Any, Callable, Optional, Protocol
 
 import requests
 from flask import Flask, request
 
 from config import conf
 
-app = Flask(__name__)
-auth_code_container = {'code': None}
 
-# Token storage
-token_data = {
-    'access_token': None,
-    'refresh_token': None,
-    'expires_at': 0
-}
+# === Protocols ===
+class TokenStore(Protocol):
+    def get_access_token(self) -> Optional[str]: ...
+    def get_refresh_token(self) -> Optional[str]: ...
+    def get_expiry(self) -> float: ...
+    def save_tokens(self, tokens: dict) -> None: ...
 
 
-# === Step 1: OAuth start ===
-def start_oauth_and_get_tokens() -> Optional[dict]:
-    threading.Thread(
-        target=lambda: app.run(port=conf.PORT),
-        daemon=True
-    ).start()
-    webbrowser.open(conf.auth_url)
-    print('Waiting for user authorization...')
-
-    while auth_code_container['code'] is None:
-        time.sleep(0.5)
-
-    tokens = exchange_code_for_token(auth_code_container['code'])
-
-    if tokens:
-        store_token_data(tokens)
-    return tokens
+class OAuthClient(Protocol):
+    def exchange_code_for_token(self, auth_code: str) -> Optional[dict]: ...
+    def refresh_access_token(self, refresh_token: str) -> Optional[dict]: ...
 
 
-def exchange_code_for_token(auth_code: str) -> Optional[dict]:
-    data = conf.authorization_code_payload(auth_code)
-    response = requests.post(conf.TOKEN_URL, data=data)
-    if response.status_code == HTTPStatus.OK:
-        return response.json()
-    print('Token exchange failed:', response.status_code, response.text)
-    return None
+class BrowserLauncher(Protocol):
+    def open(self, url: str) -> None: ...
 
 
-@app.route('/callback')
-def callback():
-    code = request.args.get('code')
-    if not code:
-        return 'Authorization code not found.', HTTPStatus.BAD_REQUEST
-    auth_code_container['code'] = code
-    return 'Authorization complete. You can close this tab.'
+# === Implementations ===
+class InMemoryTokenStore:
+    def __init__(self) -> None:
+        self._data = {
+            'access_token': None,
+            'refresh_token': None,
+            'expires_at': 0.0
+        }
+
+    def get_access_token(self) -> Optional[str]:
+        return self._data['access_token']
+
+    def get_refresh_token(self) -> Optional[str]:
+        return self._data['refresh_token']
+
+    def get_expiry(self) -> float:
+        return self._data['expires_at']
+
+    def save_tokens(self, tokens: dict) -> None:
+        self._data['access_token'] = tokens['access_token']
+        self._data['refresh_token'] = tokens.get('refresh_token')
+        expires_in = tokens.get('expires_in', 3600)
+        self._data['expires_at'] = time.time() + expires_in
 
 
-# === Step 2: Token refresh logic ===
-def store_token_data(tokens: dict):
-    token_data['access_token'] = tokens['access_token']
-    token_data['refresh_token'] = tokens.get('refresh_token')
-    expires_in = tokens.get('expires_in', 3600)
-    token_data['expires_at'] = time.time() + expires_in
+class RequestsOAuthClient:
+    def exchange_code_for_token(self, auth_code: str) -> Optional[dict]:
+        data = conf.authorization_code_payload(auth_code)
+        resp = requests.post(conf.TOKEN_URL, data=data)
+        if resp.status_code == HTTPStatus.OK:
+            return resp.json()
+        print('Token exchange failed:', resp.status_code, resp.text)
+        return None
+
+    def refresh_access_token(self, refresh_token: str) -> Optional[dict]:
+        data = conf.refresh_token_payload(refresh_token)
+        resp = requests.post(conf.TOKEN_URL, data=data)
+        if resp.status_code == HTTPStatus.OK:
+            print('Access token refreshed.')
+            return resp.json()
+        print('Token refresh failed:', resp.status_code, resp.text)
+        return None
 
 
-def refresh_access_token():
-    data = conf.refresh_token_payload(token_data['refresh_token'])
-    response = requests.post(conf.TOKEN_URL, data=data)
-    if response.status_code == HTTPStatus.OK:
-        print('Access token refreshed.')
-        store_token_data(response.json())
-    else:
-        print('Token refresh failed:', response.status_code, response.text)
+class WebBrowserLauncher:
+    def open(self, url: str) -> None:
+        webbrowser.open(url)
 
 
-def get_valid_access_token() -> str:
-    if time.time() >= token_data['expires_at']:
-        print('Access token expired — refreshing...')
-        refresh_access_token()
-    return token_data['access_token']
+# === OAuth Service ===
+class OAuthService:
+    def __init__(
+        self,
+        client: OAuthClient,
+        token_store: TokenStore,
+        browser: BrowserLauncher,
+        port: int
+    ) -> None:
+        self.client = client
+        self.token_store = token_store
+        self.browser = browser
+        self.port = port
+        self._app = Flask(__name__)
+        self._auth_code: Optional[str] = None
+        self._register_routes()
+
+    def _register_routes(self) -> None:
+        @self._app.route('/callback')
+        def callback():
+            code = request.args.get('code')
+            if not code:
+                return 'Authorization code not found.', HTTPStatus.BAD_REQUEST
+            self._auth_code = code
+            return 'Authorization complete. You can close this tab.'
+
+    def start_oauth_flow(self) -> Optional[dict]:
+        threading.Thread(
+            target=lambda: self._app.run(port=self.port),
+            daemon=True
+        ).start()
+
+        self.browser.open(conf.auth_url)
+        print('Waiting for user authorization...')
+
+        while self._auth_code is None:
+            time.sleep(0.5)
+
+        tokens = self.client.exchange_code_for_token(self._auth_code)
+        if tokens:
+            self.token_store.save_tokens(tokens)
+        return tokens
+
+    def get_valid_access_token(self) -> str:
+        if time.time() >= self.token_store.get_expiry():
+            print('Access token expired — refreshing...')
+            refreshed = self.client.refresh_access_token(
+                self.token_store.get_refresh_token())
+            if refreshed:
+                self.token_store.save_tokens(refreshed)
+        return self.token_store.get_access_token()
+# === Decorator for instance methods ===
 
 
-# === Step 3: Decorator to ensure token is valid ===
-def with_valid_token(func: Callable):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        # =====================================================================
-        # OAuth2 Access Token
-        # =====================================================================
-        headers = {'Authorization': f'Bearer {get_valid_access_token()}'}
-        return func(*args, headers=headers, **kwargs)
-    return wrapper
+def with_valid_token(oauth_attr: str):
+    """
+    oauth_attr: name of the attribute on `self` holding an OAuthService.
+    """
+    def decorator(func: Callable[..., Any]):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            oauth_service: OAuthService = getattr(self, oauth_attr)
+            headers = {
+                'Authorization': (
+                    f'Bearer {oauth_service.get_valid_access_token()}'
+                )
+            }
+            return func(self, *args, headers=headers, **kwargs)
+        return wrapper
+    return decorator
 
 
-# === Example API calls ===
-@with_valid_token
-def get_my_resumes(*, headers=None):
-    url = f'{conf.API_BASE_URL}/resumes/mine'
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
+# === API Client ===
+class APIClient:
+    def __init__(self, oauth_service: OAuthService) -> None:
+        self.oauth_service = oauth_service
+
+    @with_valid_token('oauth_service')
+    def get_my_resumes(self, *, headers=None):
+        url = f'{conf.API_BASE_URL}/resumes/mine'
+        resp = requests.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
+
+    @with_valid_token('oauth_service')
+    def get_recommended_vacancies(self, resume_id: str, *, headers=None):
+        url = f'{conf.API_BASE_URL}/resumes/{resume_id}/similar_vacancies'
+        resp = requests.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
 
 
-@with_valid_token
-def get_recommended_vacancies(resume_id: str, *, headers=None):
-    url = f'{conf.API_BASE_URL}/resumes/{resume_id}/similar_vacancies'
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
-
-
+# === Main Execution ===
 if __name__ == '__main__':
-    start_oauth_and_get_tokens()
-    resumes = get_my_resumes()
+    token_store = InMemoryTokenStore()
+    oauth_client = RequestsOAuthClient()
+    browser = WebBrowserLauncher()
+    oauth_service = OAuthService(
+        oauth_client,
+        token_store,
+        browser,
+        port=conf.PORT
+    )
+
+    api_client = APIClient(oauth_service)
+
+    oauth_service.start_oauth_flow()
+
+    resumes = api_client.get_my_resumes()
     if not resumes.get('items'):
         print('No resumes found.')
     else:
         resume_id = resumes['items'][0]['id']
         print(f'Using resume ID: {resume_id}')
 
-        vacancies = get_recommended_vacancies(resume_id)
+        vacancies = api_client.get_recommended_vacancies(resume_id)
         for vacancy in vacancies.get('items', []):
             print(vacancy['name'], '-', vacancy['alternate_url'])

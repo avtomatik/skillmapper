@@ -8,25 +8,15 @@ Created on Tue Jun  7 22:54:24 2022
 
 import threading
 import time
-import urllib.parse
 import webbrowser
 from functools import wraps
 from http import HTTPStatus
 from typing import Callable, Optional
 
 import requests
-from config import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
 from flask import Flask, request
 
-# === Configuration ===
-AUTH_BASE_URL = 'https://hh.ru/oauth/authorize'
-TOKEN_URL = 'https://hh.ru/oauth/token'
-AUTH_PAYLOAD = {
-    'response_type': 'code',
-    'client_id': CLIENT_ID,
-    'redirect_uri': REDIRECT_URI
-}
-PORT = 8080
+from config import conf
 
 app = Flask(__name__)
 auth_code_container = {'code': None}
@@ -40,43 +30,27 @@ token_data = {
 
 
 # === Step 1: OAuth start ===
-
-
 def start_oauth_and_get_tokens() -> Optional[dict]:
-    auth_url = f'{AUTH_BASE_URL}?{urllib.parse.urlencode(AUTH_PAYLOAD)}'
-    threading.Thread(target=lambda: app.run(port=PORT), daemon=True).start()
-    webbrowser.open(auth_url)
+    threading.Thread(
+        target=lambda: app.run(port=conf.PORT),
+        daemon=True
+    ).start()
+    webbrowser.open(conf.auth_url)
     print('Waiting for user authorization...')
 
     while auth_code_container['code'] is None:
-        time.sleep(0.5)  # Avoid busy loop
+        time.sleep(0.5)
 
-    tokens = exchange_code_for_token(
-        auth_code=auth_code_container['code'],
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI
-    )
+    tokens = exchange_code_for_token(auth_code_container['code'])
 
     if tokens:
         store_token_data(tokens)
     return tokens
 
 
-def exchange_code_for_token(
-    auth_code: str,
-    client_id: str,
-    client_secret: str,
-    redirect_uri: str
-) -> Optional[dict]:
-    data = {
-        'grant_type': 'authorization_code',
-        'code': auth_code,
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'redirect_uri': redirect_uri
-    }
-    response = requests.post(TOKEN_URL, data=data)
+def exchange_code_for_token(auth_code: str) -> Optional[dict]:
+    data = conf.authorization_code_payload(auth_code)
+    response = requests.post(conf.TOKEN_URL, data=data)
     if response.status_code == HTTPStatus.OK:
         return response.json()
     print('Token exchange failed:', response.status_code, response.text)
@@ -101,13 +75,8 @@ def store_token_data(tokens: dict):
 
 
 def refresh_access_token():
-    data = {
-        'grant_type': 'refresh_token',
-        'refresh_token': token_data['refresh_token'],
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET
-    }
-    response = requests.post(TOKEN_URL, data=data)
+    data = conf.refresh_token_payload(token_data['refresh_token'])
+    response = requests.post(conf.TOKEN_URL, data=data)
     if response.status_code == HTTPStatus.OK:
         print('Access token refreshed.')
         store_token_data(response.json())
@@ -136,16 +105,16 @@ def with_valid_token(func: Callable):
 
 # === Example API calls ===
 @with_valid_token
-def get_my_resumes(headers):
-    url = 'https://api.hh.ru/resumes/mine'
+def get_my_resumes(*, headers=None):
+    url = f'{conf.API_BASE_URL}/resumes/mine'
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json()
 
 
 @with_valid_token
-def get_recommended_vacancies(resume_id: str, headers):
-    url = f'https://api.hh.ru/resumes/{resume_id}/recommendations'
+def get_recommended_vacancies(resume_id: str, *, headers=None):
+    url = f'{conf.API_BASE_URL}/resumes/{resume_id}/recommendations'
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json()

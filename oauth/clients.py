@@ -12,14 +12,14 @@ class RequestsOAuthClient:
         resp = requests.post(conf.TOKEN_URL, data=data)
         if resp.status_code == HTTPStatus.OK:
             return resp.json()
-        print('Token exchange failed:', resp.status_code, resp.text)
+        print("Token exchange failed:", resp.status_code, resp.text)
         return None
 
     def refresh_access_token(self, refresh_token: str) -> Optional[dict]:
         data = conf.refresh_token_payload(refresh_token)
         resp = requests.post(conf.TOKEN_URL, data=data)
         if resp.status_code == HTTPStatus.OK:
-            print('Access token refreshed.')
+            print("Access token refreshed.")
             return resp.json()
-        print('Token refresh failed:', resp.status_code, resp.text)
+        print("Token refresh failed:", resp.status_code, resp.text)
         return None

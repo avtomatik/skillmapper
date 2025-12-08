@@ -15,7 +15,7 @@ class OAuthService:
         client: OAuthClient,
         token_store: TokenStore,
         browser: BrowserLauncher,
-        port: int
+        port: int,
     ) -> None:
         self.client = client
         self.token_store = token_store
@@ -26,22 +26,21 @@ class OAuthService:
         self._register_routes()
 
     def _register_routes(self) -> None:
-        @self._app.route('/callback')
+        @self._app.route("/callback")
         def callback():
-            code = request.args.get('code')
+            code = request.args.get("code")
             if not code:
-                return 'Authorization code not found.', HTTPStatus.BAD_REQUEST
+                return "Authorization code not found.", HTTPStatus.BAD_REQUEST
             self._auth_code = code
-            return 'Authorization complete. You can close this tab.'
+            return "Authorization complete. You can close this tab."
 
     def start_oauth_flow(self) -> Optional[dict]:
         threading.Thread(
-            target=lambda: self._app.run(port=self.port),
-            daemon=True
+            target=lambda: self._app.run(port=self.port), daemon=True
         ).start()
 
         self.browser.open(conf.auth_url)
-        print('Waiting for user authorization...')
+        print("Waiting for user authorization...")
 
         while self._auth_code is None:
             time.sleep(0.5)
@@ -53,7 +52,7 @@ class OAuthService:
 
     def get_valid_access_token(self) -> str:
         if time.time() >= self.token_store.get_expiry():
-            print('Access token expired — refreshing...')
+            print("Access token expired — refreshing...")
             refreshed = self.client.refresh_access_token(
                 self.token_store.get_refresh_token()
             )

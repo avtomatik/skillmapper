@@ -25,9 +25,9 @@ cd skillmapper
 2. **Create a virtual environment and install dependencies:**
 
 ```bash
-python3.13 -m venv .venv
+uv venv
 source .venv/bin/activate
-pip install --no-cache-dir -r requirements.txt
+uv sync
 ```
 
 3. **Create `.env` file with your credentials:**
@@ -41,7 +41,7 @@ CLIENT_SECRET=your_hh_client_secret
 4. **Run the app:**
 
 ```bash
-python3 main.py
+uv run python3 main.py
 ```
 
 5. **Authorize the application:**

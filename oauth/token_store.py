@@ -1,5 +1,4 @@
 import time
-from typing import Optional
 
 
 class InMemoryTokenStore:
@@ -10,10 +9,10 @@ class InMemoryTokenStore:
             "expires_at": 0.0,
         }
 
-    def get_access_token(self) -> Optional[str]:
+    def get_access_token(self) -> str | None:
         return self._data["access_token"]
 
-    def get_refresh_token(self) -> Optional[str]:
+    def get_refresh_token(self) -> str | None:
         return self._data["refresh_token"]
 
     def get_expiry(self) -> float:

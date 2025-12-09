@@ -1,7 +1,6 @@
 import threading
 import time
 from http import HTTPStatus
-from typing import Optional
 
 from flask import Flask, request
 
@@ -22,7 +21,7 @@ class OAuthService:
         self.browser = browser
         self.port = port
         self._app = Flask(__name__)
-        self._auth_code: Optional[str] = None
+        self._auth_code: str | None = None
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -34,7 +33,7 @@ class OAuthService:
             self._auth_code = code
             return "Authorization complete. You can close this tab."
 
-    def start_oauth_flow(self) -> Optional[dict]:
+    def start_oauth_flow(self) -> dict | None:
         threading.Thread(
             target=lambda: self._app.run(port=self.port), daemon=True
         ).start()

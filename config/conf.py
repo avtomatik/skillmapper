@@ -1,18 +1,21 @@
-import os
 import urllib.parse
 
-from dotenv import load_dotenv
+from pydantic import ConfigDict
+from pydantic_settings import BaseSettings
 
-load_dotenv()
 
-
-class Settings:
-    CLIENT_ID: str = os.getenv("CLIENT_ID", "your_client_id_here")
-    CLIENT_SECRET: str = os.getenv("CLIENT_SECRET", "your_client_secret_here")
-    REDIRECT_SCHEME: str = os.getenv("REDIRECT_SCHEME", "http")
-    REDIRECT_HOST: str = os.getenv("REDIRECT_HOST", "localhost")
-    PORT: int = int(os.getenv("PORT", 8080))
-    REDIRECT_PATH: str = os.getenv("REDIRECT_PATH", "/callback")
+class Settings(BaseSettings):
+    CLIENT_ID: str = (
+        "00000000000000000000AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    )
+    CLIENT_SECRET: str = (
+        "0000000000000000AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    )
+    APPLICATION_NUMBER: str = "11111"
+    REDIRECT_SCHEME: str = "http"
+    REDIRECT_HOST: str = "localhost"
+    PORT: str = "8080"
+    REDIRECT_PATH: str = "/callback"
 
     AUTH_BASE_URL: str = "https://hh.ru/oauth/authorize"
     TOKEN_URL: str = "https://api.hh.ru/token"
@@ -54,6 +57,9 @@ class Settings:
             "client_id": self.CLIENT_ID,
             "client_secret": self.CLIENT_SECRET,
         }
+
+    class Config(ConfigDict):
+        env_file = ".env"
 
 
 conf = Settings()

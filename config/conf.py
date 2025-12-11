@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     APPLICATION_NUMBER: str = "11111"
     REDIRECT_SCHEME: str = "http"
     REDIRECT_HOST: str = "localhost"
-    PORT: str = "8080"
+    PORT: int = 8080
     REDIRECT_PATH: str = "/callback"
 
     AUTH_BASE_URL: str = "https://hh.ru/oauth/authorize"

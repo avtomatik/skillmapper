@@ -18,12 +18,12 @@ if __name__ == "__main__":
     oauth_service.start_oauth_flow()
 
     resumes = api_client.get_my_resumes()
-    if not resumes.get("items"):
+    if not resumes:
         print("No resumes found.")
     else:
-        resume_id = resumes["items"][0]["id"]
+        resume_id = resumes[0].id
         print(f"Using resume ID: {resume_id}")
 
         vacancies = api_client.get_recommended_vacancies(resume_id)
-        for vacancy in vacancies.get("items", []):
-            print(vacancy["name"], "-", vacancy["alternate_url"])
+        for vacancy in vacancies:
+            print(vacancy.name, "-", vacancy.alternate_url)

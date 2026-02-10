@@ -32,9 +32,9 @@ class EmployerLogoURL(BaseModel):
 
 
 class PhoneNumber(BaseModel):
-    comment: str
-    city: str
-    number: str
+    comment: str | None = None
+    city: str | None = None
+    number: str | None = None
     country: str
     formatted: str
 
@@ -51,19 +51,19 @@ class VacancyArea(BaseModel):
 
 
 class VacancySalary(BaseModel):
-    not_less: int = Field(alias="from")
-    not_more: int = Field(alias="to")
+    not_less: int | None = Field(default=None, alias="from")
+    not_more: int | None = Field(default=None, alias="to")
     currency: Currency
     gross: bool
 
 
 class VacancySalaryRange(BaseModel):
-    not_less: int = Field(alias="from")
-    not_more: int = Field(alias="to")
+    not_less: int | None = Field(default=None, alias="from")
+    not_more: int | None = Field(default=None, alias="to")
     currency: Currency
     gross: bool
     mode: VacancySalaryRangeMode
-    frequency: VacancySalaryRangeFrequency
+    frequency: VacancySalaryRangeFrequency | None = None
 
 
 class VacancyType(BaseModel):
@@ -72,21 +72,21 @@ class VacancyType(BaseModel):
 
 
 class VacancyAddress(BaseModel):
+    id: str
     city: str
     street: str
-    building: str
+    building: str | None = None
     lat: float
     lng: float
-    description: str
+    description: str | None = None
     raw: str
-    metro: VacancyMetroStation
+    metro: VacancyMetroStation | None = None
     metro_stations: list[VacancyMetroStation] = Field(default_factory=list)
-    id: str
 
 
 class VacancyBranding(BaseModel):
     type: str
-    tariff: str
+    tariff: str | None = None
 
 
 class VacancyEmployer(BaseModel):
@@ -94,7 +94,7 @@ class VacancyEmployer(BaseModel):
     name: str
     url: str
     alternate_url: str
-    logo_urls: EmployerLogoURL
+    logo_urls: EmployerLogoURL | None = None
     vacancies_url: str
     country_id: int
     accredited_it_employer: bool
@@ -110,7 +110,7 @@ class VacancyContact(BaseModel):
     name: str
     email: str
     phones: list[PhoneNumber] = Field(default_factory=list)
-    call_tracking_enabled: bool
+    call_tracking_enabled: bool | None = None
 
 
 class VacancySchedule(BaseModel):
@@ -176,7 +176,7 @@ class Vacancy(BaseModel):
     created_at: datetime.datetime
     archived: bool
     apply_alternate_url: str
-    branding: VacancyBranding
+    branding: VacancyBranding | None = None
     show_logo_in_search: bool | None = None
     show_contacts: bool
     insider_interview: bool | None = None

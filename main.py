@@ -5,25 +5,40 @@ from oauth.clients import RequestsOAuthClient
 from oauth.service import OAuthService
 from oauth.token_store import InMemoryTokenStore
 
-if __name__ == "__main__":
+
+def create_api_client() -> APIClient:
     token_store = InMemoryTokenStore()
     oauth_client = RequestsOAuthClient()
     browser = WebBrowserLauncher()
+
     oauth_service = OAuthService(
         oauth_client, token_store, browser, port=conf.PORT
     )
 
-    api_client = APIClient(oauth_service)
-
     oauth_service.start_oauth_flow()
 
+    return APIClient(oauth_service)
+
+
+def print_recommended_vacancies(api_client: APIClient):
     resumes = api_client.get_my_resumes()
+
     if not resumes:
         print("No resumes found.")
-    else:
-        resume_id = resumes[0].id
-        print(f"Using resume ID: {resume_id}")
+        return
 
-        vacancies = api_client.get_recommended_vacancies(resume_id)
+    for resume in resumes:
+        print(f"Using resume ID: {resume.id}")
+
+        vacancies = api_client.get_recommended_vacancies(resume.id)
         for vacancy in vacancies:
-            print(vacancy.name, "-", vacancy.alternate_url)
+            print(f"{resume.id}: {vacancy.name} -> {vacancy.snippet}.")
+
+
+def main() -> None:
+    api_client = create_api_client()
+    print_recommended_vacancies(api_client)
+
+
+if __name__ == "__main__":
+    main()

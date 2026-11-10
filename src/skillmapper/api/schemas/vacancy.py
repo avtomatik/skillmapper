@@ -1,9 +1,9 @@
 import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from api.enums import Currency
+from skillmapper.api.enums import Currency
 
 
 class Reference(BaseModel):
@@ -99,6 +99,7 @@ class VacancyContact(BaseModel):
 
 
 class Vacancy(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     id: str
     premium: bool
     name: str
